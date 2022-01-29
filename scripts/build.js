@@ -2,13 +2,13 @@ const fs = require('fs').promises
 const camelcase = require('camelcase')
 const { promisify } = require('util')
 const rimraf = promisify(require('rimraf'))
-const svgr = require('@svgr/core').default
+const svgr = require('@svgr/core')
 const babel = require('@babel/core')
 const { compile: compileVue } = require('@vue/compiler-dom')
 
 let transform = {
   react: async (svg, componentName, format) => {
-    let component = await svgr(svg, {}, { componentName })
+    let component = await svgr.transform(svg, {}, { componentName })
     let { code } = await babel.transformAsync(component, {
       plugins: [[require('@babel/plugin-transform-react-jsx'), { useBuiltIns: true }]],
     })
