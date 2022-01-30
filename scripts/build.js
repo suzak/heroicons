@@ -80,8 +80,8 @@ async function buildIcons(package, style, format) {
 
   let icons = await getIcons(style)
 
-  await Promise.all(
-    icons.flatMap(async ({ componentName, svg }) => {
+  await Promise.all([
+    ...icons.flatMap(async ({ componentName, svg }) => {
       let content = await transform[package](svg, componentName, format)
       let types =
         package === 'react'
@@ -92,31 +92,32 @@ async function buildIcons(package, style, format) {
         fs.writeFile(`${outDir}/${componentName}.js`, content, 'utf8'),
         ...(types ? [fs.writeFile(`${outDir}/${componentName}.d.ts`, types, 'utf8')] : []),
       ]
-    })
-  )
+    }),
+    fs.writeFile(`${outDir}/index.js`, exportAll(icons, format), 'utf8'),
+    fs.writeFile(`${outDir}/index.d.ts`, exportAll(icons, 'esm', false), 'utf8'),
+  ])
 
-  await fs.writeFile(`${outDir}/index.js`, exportAll(icons, format), 'utf8')
-
-  await fs.writeFile(`${outDir}/index.d.ts`, exportAll(icons, 'esm', false), 'utf8')
+  return outDir
 }
 
-function main(package) {
+async function main(package) {
   console.log(`Building ${package} package...`)
 
-  Promise.all([rimraf(`./${package}/outline/*`), rimraf(`./${package}/solid/*`)])
-    .then(() =>
-      Promise.all([
-        buildIcons(package, 'solid', 'esm'),
-        buildIcons(package, 'solid', 'cjs'),
-        buildIcons(package, 'outline', 'esm'),
-        buildIcons(package, 'outline', 'cjs'),
-        fs.writeFile(`./${package}/outline/package.json`, `{"module": "./esm/index.js"}`, 'utf8'),
-        fs.writeFile(`./${package}/outline/esm/package.json`, `{"type": "module"}`, 'utf8'),
-        fs.writeFile(`./${package}/solid/package.json`, `{"module": "./esm/index.js"}`, 'utf8'),
-        fs.writeFile(`./${package}/solid/esm/package.json`, `{"type": "module"}`, 'utf8'),
-      ])
-    )
-    .then(() => console.log(`Finished building ${package} package.`))
+  await Promise.all(
+    ['outline', 'solid']
+      .flatMap(async style => {
+        await rimraf(`./${package}/${style}`)
+        return [
+          { format: 'cjs', json: `{"module": "./esm/index.js"}` },
+          { format: 'esm', json: `{"type": "module"}` }
+        ].flatMap(async ({ format, json }) => {
+          let outDir = await buildIcons(package, style, format)
+          fs.writeFile(`${outDir}/package.json`, json, 'utf8')
+        })
+      })
+  )
+
+  console.log(`Finished building ${package} package.`)
 }
 
 let [package] = process.argv.slice(2)
